@@ -14,7 +14,7 @@ export function pointCloud(count, motion = '', tightness = 1) {
   const opacity = new Float32Array(count);
   for (let i = 0; i < count; i++) {
     palette[i % palette.length].toArray(colors, i * 3);
-    sizes[i] = 0.68 + Math.random() ** 3.2 * 2.05;
+    sizes[i] = 0.88 + Math.random() ** 3.2 * 1.46;
     phases[i] = Math.random() * tau;
     opacity[i] = 0.32 + Math.random() * 0.68;
   }
@@ -35,27 +35,35 @@ export function pointCloud(count, motion = '', tightness = 1) {
       uniform float clock, pixels, pulse, heartMode;
       varying vec3 hue;
       varying float strength;
+      varying float diameter;
       void main() {
         vec3 p = position;
-        float beat = sin(clock * 1.65 + phase);
+        float beat = sin(clock * (1.15 + fract(phase)*1.9) + phase);
         float energy = pow(0.5 + 0.5*sin(clock*2.6 - p.y*2.4 + sin(p.x*2.5 + p.z*1.7)), 9.0);
+        float flowFade = 1.0;
         ${motion}
         vec4 view = modelViewMatrix * vec4(p,1.0);
         gl_Position = projectionMatrix * view;
-        gl_PointSize = clamp((size + heartMode * (.27 + .23 * energy)) * pixels * (7.8 / -view.z) * (1.04 + beat * .16), 1.0, 120.0);
-        hue = tint * mix(vec3(1.0), vec3(.62,.85,1.16), heartMode);
-        strength = opacity * (.66 + .34*beat) * clamp(9.8 / -view.z, .55, 1.3) * (1.0 + heartMode * (.33 + .63 * energy));
+        diameter = size * pixels * (7.8 / -view.z);
+        // Use a slightly larger raster footprint to retain round cores on high-DPR displays.
+        gl_PointSize = max(2.0, diameter * 1.65);
+        hue = tint * mix(vec3(1.0), vec3(.62,.86,1.18), heartMode);
+        strength = opacity * (.76 + .24*beat) * clamp(9.8 / -view.z, .55, 1.25);
+        strength *= flowFade * (1.0 + heartMode * (.34 + .52 * energy));
       }`,
     fragmentShader: `
       uniform float sharpness;
       varying vec3 hue;
       varying float strength;
+      varying float diameter;
       void main() {
-        vec2 q = gl_PointCoord * 2.0 - 1.0;
+        float footprint = max(2.0, diameter * 1.65);
+        vec2 q = (gl_PointCoord - .5) * footprint / max(1.22, diameter);
         float r = dot(q,q);
-        if (r > 1.0) discard;
-        float light = mix(exp(-3.7*r), exp(-5.6*r), sharpness) * (1.0 - smoothstep(.7,1.0,r));
-        gl_FragColor = vec4(hue * 2.0, light * strength);
+        float core = exp(-mix(5.0, 7.1, sharpness)*r);
+        float halo = .1 * exp(-2.9*r);
+        float light = (core + halo) * (1.0 - smoothstep(.30,.66,r));
+        gl_FragColor = vec4(hue * 2.35, light * strength);
       }`,
     transparent: true, depthWrite: false, blending: T.AdditiveBlending,
   });
@@ -71,22 +79,44 @@ export function heartParticles(useHighQuality) {
   `);
   cloud.material.uniforms.heartMode.value = 1;
   const { positions, opacity, geometry } = cloud;
-  // Implicit volumetric heart. Sample a near-surface shell and a smaller solid interior.
+  // Shape the frontal perimeter first, then inflate it into a rounded volume.
+  // Using the distance to the perimeter for depth keeps the cleft open through Z.
+  const outline = Array.from({length: 96}, (_, i) => {
+    const t = i * tau / 96;
+    return [
+      1.76 * Math.sin(t) ** 3,
+      .106 * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) + .43,
+    ];
+  });
   let state = 139531;
   const random = () => {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
     return state / 4294967296;
   };
   for (let i = 0; i < opacity.length;) {
-    const x = (random() * 2 - 1) * 1.32;
-    const y = random() * 2.56 - 1.12;
-    const z = (random() * 2 - 1) * 1.06;
-    // Rotate the conventional z-up implicit heart into y-up coordinates.
-    const a = x * x + 2.25 * z * z + y * y - 1;
-    const field = a ** 3 - x * x * y ** 3 - 0.1125 * z * z * y ** 3;
-    if (field > 0 || (field < -0.075 && random() < 0.78)) continue;
-    positions.set([x * 1.58, (y - 0.115) * 1.42 + 0.24, z * 1.94], i * 3);
-    opacity[i] *= field < -0.075 ? 0.69 : 1;
+    const x = (random() * 2 - 1) * 1.76;
+    const y = random() * 3.2 - 1.39;
+    let inside = false;
+    let distanceSquared = Infinity;
+    for (let j = 0; j < outline.length; j++) {
+      const [ax, ay] = outline[j];
+      const [bx, by] = outline[(j + 1) % outline.length];
+      const dx = bx - ax;
+      const dy = by - ay;
+      if ((ay > y) !== (by > y) && x < ax + (y - ay) * dx / dy) inside = !inside;
+      const t = T.MathUtils.clamp(((x - ax)*dx + (y - ay)*dy) / (dx*dx + dy*dy), 0, 1);
+      distanceSquared = Math.min(distanceSquared, (x - ax - t*dx)**2 + (y - ay - t*dy)**2);
+    }
+    if (!inside) continue;
+    const distance = Math.sqrt(distanceSquared);
+    const bevel = Math.min(1, distance / .80);
+    const maxDepth = .99 * Math.sqrt(bevel * (2 - bevel));
+    const onShell = random() < .74;
+    const layer = onShell ? .86 + .14 * random() : random() * .86;
+    const edgeLight = 1 + .55 * Math.exp(-distance * 10);
+    positions.set([x, y, maxDepth * layer * (random() < .5 ? -1 : 1)], i * 3);
+    cloud.sizes[i] = 1.04 + random() ** 3.4 * 1.17;
+    opacity[i] *= (onShell ? 1.0 : .57) * edgeLight;
     i++;
   }
   geometry.setDrawRange(0, HEART_COUNTS[useHighQuality ? 2 : 1]);
