@@ -78,15 +78,20 @@ function start() {
     const width = stage.clientWidth || 1;
     const height = stage.clientHeight || 1;
     const aspect = width / height;
-    const usable = height - (innerHeight < 540 ? 66 : 95);
-    const verticalHalf = Math.max(2.65, 2.48 * height / Math.max(usable, height * .55));
-    const half = Math.max(verticalHalf, 2.18 / aspect);
+    // Fit the swept volume of the heart and the base into the measured stage.
+    // The depth allowance keeps particles nearest the camera inside the frame.
+    const verticalHalf = 2.44;
+    const horizontalHalf = 2.28;
+    const half = Math.max(verticalHalf, horizontalHalf / aspect);
+    const viewDistance = half / Math.tan(T.MathUtils.degToRad(camera.fov / 2)) + 0.92;
     camera.aspect = aspect;
-    camera.position.set(0, half * .18 + .02, half / Math.tan(T.MathUtils.degToRad(camera.fov / 2)));
-    camera.lookAt(0, -.03, 0);
+    camera.position.set(0, .83, viewDistance);
+    camera.lookAt(0, -.14, 0);
     camera.updateProjectionMatrix();
 
-    const dpr = Math.min(devicePixelRatio || 1, [1, 1.35, 1.65][quality]);
+    const pixelBudget = quality === 2 ? 3300000 : 2100000;
+    const dpr = Math.min(devicePixelRatio || 1, [1, 1.35, 1.65][quality],
+      Math.sqrt(pixelBudget / (width * height)));
     renderer.setPixelRatio(dpr);
     renderer.setSize(width, height, false);
     composer.setPixelRatio(dpr);
@@ -239,6 +244,8 @@ function start() {
     fullscreen.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
     resize();
   });
+  const stageObserver = new ResizeObserver(resize);
+  stageObserver.observe(stage);
   listen(window, 'resize', resize);
   listen(document, 'visibilitychange', () => {
     lastFrame = 0;
@@ -265,6 +272,7 @@ function start() {
   function dispose() {
     ended = true;
     listeners.abort();
+    stageObserver.disconnect();
     cancelAnimationFrame(frameId);
     scene.traverse(object => {
       object.geometry?.dispose();
