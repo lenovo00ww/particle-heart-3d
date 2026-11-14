@@ -29,7 +29,7 @@ function start() {
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(36, 1, .1, 65);
   const composer = new EffectComposer(renderer);
-  const bloom = new UnrealBloomPass(new T.Vector2(1, 1), .8, .56, .18);
+  const bloom = new UnrealBloomPass(new T.Vector2(1, 1), .8, .47, .24);
   const renderPass = new RenderPass(scene, camera);
   const outputPass = new OutputPass();
   composer.addPass(renderPass);

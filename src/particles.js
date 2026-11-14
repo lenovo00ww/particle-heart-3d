@@ -27,12 +27,12 @@ export function pointCloud(count, motion = '', tightness = 1) {
   const material = new T.ShaderMaterial({
     uniforms: {
       clock: { value: 0 }, pixels: { value: 1 }, pulse: { value: 0 },
-      sharpness: { value: tightness },
+      sharpness: { value: tightness }, heartMode: { value: 0 },
     },
     vertexShader: `
       attribute vec3 tint;
       attribute float size, phase, opacity;
-      uniform float clock, pixels, pulse;
+      uniform float clock, pixels, pulse, heartMode;
       varying vec3 hue;
       varying float strength;
       void main() {
@@ -42,9 +42,9 @@ export function pointCloud(count, motion = '', tightness = 1) {
         ${motion}
         vec4 view = modelViewMatrix * vec4(p,1.0);
         gl_Position = projectionMatrix * view;
-        gl_PointSize = clamp(size * pixels * (7.8 / -view.z) * (1.04 + beat * .16), 1.0, 120.0);
-        hue = tint;
-        strength = opacity * (.66 + .34*beat) * clamp(9.8 / -view.z, .55, 1.3);
+        gl_PointSize = clamp((size + heartMode * (.27 + .23 * energy)) * pixels * (7.8 / -view.z) * (1.04 + beat * .16), 1.0, 120.0);
+        hue = tint * mix(vec3(1.0), vec3(.62,.85,1.16), heartMode);
+        strength = opacity * (.66 + .34*beat) * clamp(9.8 / -view.z, .55, 1.3) * (1.0 + heartMode * (.33 + .63 * energy));
       }`,
     fragmentShader: `
       uniform float sharpness;
@@ -69,6 +69,7 @@ export function heartParticles(useHighQuality) {
     p += normalize(p + vec3(.002)) * (beat * .021 + pulse * .17);
     p.y += .008 * sin(clock * 2.0 + p.x * 3.0 + phase);
   `);
+  cloud.material.uniforms.heartMode.value = 1;
   const { positions, opacity, geometry } = cloud;
   // Implicit volumetric heart. Sample a near-surface shell and a smaller solid interior.
   let state = 139531;
