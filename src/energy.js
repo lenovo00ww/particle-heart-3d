@@ -3,19 +3,19 @@ import { pointCloud } from './particles.js';
 
 export const BASE_Y = -1.85;
 const TAU = Math.PI * 2;
-const PATHS = 24;
-const RINGS = 8;
-const SEGMENTS = 38;
+const PATHS = 31;
+const RINGS = 9;
+const SEGMENTS = 44;
 
 function trailPoint(target, i, time, progress, life) {
   const ring = i < RINGS;
-  const angle = i * 2.39996 + time * (.7 + (i % 3) * .28) + progress * (ring ? 3.6 : 1.9 + (i % 4) * .47) + .32 * Math.sin(progress * 6 + i);
+  const angle = i * 2.39996 + time * (.7 + (i % 3) * .28) + progress * (ring ? 3.6 : 1.9 + (i % 4) * .47) + (.20 + (i % 4) * .07) * Math.sin(progress * (5 + i % 4) + i);
   const radius = ring
     ? (.39 + (i % 5) * .145) * (.72 + progress * .34)
-    : .09 + (i % 6) * .12 * Math.sin(Math.PI * progress) + .63 * progress ** 2;
+    : .20 + (i % 6) * .14 * Math.sin(Math.PI * progress) + .68 * progress ** 2;
   const height = ring
     ? .03 + (i % 4) * .065 + .11 * Math.sin(progress * 5 + i)
-    : progress * (1.25 + (i % 5) * .43) + .07 * Math.sin(angle * 2);
+    : progress * (1.18 + (i % 5) * .46) + .095 * Math.sin(angle * 1.7) * Math.sin(Math.PI * progress);
   return target.set(Math.cos(angle) * radius, BASE_Y + height + (ring ? 0 : life * .1), Math.sin(angle) * radius);
 }
 
@@ -44,10 +44,10 @@ export function energyEffects() {
   lines.frustumCulled = false;
 
   const heads = pointCloud(PATHS, '', 0.35);
-  const energy = pointCloud(660, `
+  const energy = pointCloud(900, `
     float travel = fract(p.y + clock * (.17 + .21 * fract(phase)));
     float angle = p.x + travel * 5.5 + clock * .95;
-    float radius = p.z * (.78 + .36*sin(travel * 3.1416)) * (1.0 - .50*travel);
+    float radius = p.z * (.68 + .57*sin(travel * 3.1416)) * (1.0 - .36*travel);
     p = vec3(cos(angle)*radius, ${BASE_Y.toFixed(2)} + travel*(1.8 + .7*fract(phase)), sin(angle)*radius);
     flowFade = smoothstep(0.0,.09,travel) * (1.0-smoothstep(.65,1.0,travel));
   `, .55);
@@ -60,18 +60,18 @@ export function energyEffects() {
     energy.positions.set([Math.random() * TAU, Math.random(), Math.random() ** 1.6 * 1.19], i * 3);
     energy.colors.set([.05, .47 + Math.random() * .18, 1], i * 3);
     energy.opacity[i] *= .68;
-    energy.sizes[i] *= 1.36;
+    energy.sizes[i] *= 1.12;
   }
   for (let i = 0; i < base.opacity.length; i++) {
     const angle = Math.random() * TAU;
     const radius = Math.random() ** .52 * 1.11;
     base.positions.set([Math.cos(angle) * radius, BASE_Y + Math.random() * .21, Math.sin(angle) * radius], i * 3);
     base.colors.set([.015, .5, 1], i * 3);
-    base.sizes[i] *= 1.38;
+    base.sizes[i] *= 1.22;
   }
   for (let i = 0; i < PATHS; i++) {
     heads.colors.set([.12, .67, 1], i * 3);
-    heads.sizes[i] = 2.7 + (i % 4) * .34;
+    heads.sizes[i] = 1.85 + (i % 4) * .25;
   }
   heads.geometry.attributes.position.setUsage(T.DynamicDrawUsage);
   heads.geometry.attributes.opacity.setUsage(T.DynamicDrawUsage);
@@ -90,7 +90,7 @@ export function energyEffects() {
         float fog = exp(-5.5*q.x*q.x-13.0*q.y*q.y) * .22;
         float core = exp(-12.0*q.x*q.x-72.0*q.y*q.y) * .44;
         float edge = (1.0-smoothstep(.74,1.0,abs(q.x))) * (1.0-smoothstep(.72,1.0,abs(q.y)));
-        gl_FragColor = vec4(.02,.60,1.20,(fog+core)*flicker*edge*(.35 + glow*.50));
+        gl_FragColor = vec4(.02,.60,1.20,(fog+core)*flicker*edge*(.46 + glow*.55));
       }`,
     transparent: true, depthWrite: false, blending: T.AdditiveBlending,
   }));
@@ -106,14 +106,15 @@ export function energyEffects() {
       for (let i = 0; i < PATHS; i++) {
         const life = (time * (.31 + (i % 7) * .035) + i * .618033) % 1;
         const end = i < RINGS ? life * .6 + .47 : life;
-        const span = (i < RINGS ? .32 : .38) + (i % 3) * .09;
+        const span = (i < RINGS ? .39 : .51) + (i % 3) * .10;
         const fade = Math.sin(life * Math.PI) ** 1.1;
         for (let s = 0; s < SEGMENTS; s++) {
           for (let v = 0; v < 2; v++) {
             const u = (s + v) / SEGMENTS;
             const index = (i * SEGMENTS + s) * 2 + v;
             trailPoint(point, i, time, Math.max(0, end - span * (1 - u)), life).toArray(positions, index * 3);
-            strength[index] = u ** 1.65 * fade * (i < RINGS ? .68 : .59) * (.55 + glow * .48);
+            const shimmer = .79 + .21 * Math.sin(u * 14 - time * (3.1 + i % 4) + i);
+            strength[index] = u ** 1.45 * fade * shimmer * (i < RINGS ? .87 : .75) * (.61 + glow * .47);
           }
         }
         point.toArray(heads.positions, i * 3);

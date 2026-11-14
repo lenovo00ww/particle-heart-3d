@@ -46,10 +46,10 @@ export function pointCloud(count, motion = '', tightness = 1) {
         gl_Position = projectionMatrix * view;
         diameter = size * pixels * (7.8 / -view.z);
         // Use a slightly larger raster footprint to retain round cores on high-DPR displays.
-        gl_PointSize = max(2.0, diameter * 1.65);
+        gl_PointSize = max(3.0, diameter * 2.05);
         hue = tint * mix(vec3(1.0), vec3(.62,.86,1.18), heartMode);
         strength = opacity * (.76 + .24*beat) * clamp(9.8 / -view.z, .55, 1.25);
-        strength *= flowFade * (1.0 + heartMode * (.34 + .52 * energy));
+        strength *= flowFade * (1.0 + heartMode * (.20 + .47 * energy));
       }`,
     fragmentShader: `
       uniform float sharpness;
@@ -57,12 +57,12 @@ export function pointCloud(count, motion = '', tightness = 1) {
       varying float strength;
       varying float diameter;
       void main() {
-        float footprint = max(2.0, diameter * 1.65);
-        vec2 q = (gl_PointCoord - .5) * footprint / max(1.22, diameter);
+        float footprint = max(3.0, diameter * 2.05);
+        vec2 q = (gl_PointCoord - .5) * footprint / max(1.16, diameter);
         float r = dot(q,q);
         float core = exp(-mix(5.0, 7.1, sharpness)*r);
-        float halo = .1 * exp(-2.9*r);
-        float light = (core + halo) * (1.0 - smoothstep(.30,.66,r));
+        float halo = .075 * exp(-3.4*r);
+        float light = (core + halo) * (1.0 - smoothstep(.19,.58,r));
         gl_FragColor = vec4(hue * 2.35, light * strength);
       }`,
     transparent: true, depthWrite: false, blending: T.AdditiveBlending,
@@ -83,9 +83,10 @@ export function heartParticles(useHighQuality) {
   // Using the distance to the perimeter for depth keeps the cleft open through Z.
   const outline = Array.from({length: 96}, (_, i) => {
     const t = i * tau / 96;
+    const height = .106 * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
     return [
       1.76 * Math.sin(t) ** 3,
-      .106 * (13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t)) + .43,
+      height + .43 + .21 * Math.max(0, -height) ** 1.18,
     ];
   });
   let state = 139531;
@@ -110,12 +111,12 @@ export function heartParticles(useHighQuality) {
     if (!inside) continue;
     const distance = Math.sqrt(distanceSquared);
     const bevel = Math.min(1, distance / .80);
-    const maxDepth = .99 * Math.sqrt(bevel * (2 - bevel));
+    const maxDepth = .90 * Math.sqrt(bevel * (2 - bevel));
     const onShell = random() < .74;
     const layer = onShell ? .86 + .14 * random() : random() * .86;
-    const edgeLight = 1 + .55 * Math.exp(-distance * 10);
+    const edgeLight = 1 + .68 * Math.exp(-distance * 12);
     positions.set([x, y, maxDepth * layer * (random() < .5 ? -1 : 1)], i * 3);
-    cloud.sizes[i] = 1.04 + random() ** 3.4 * 1.17;
+    cloud.sizes[i] = 1.00 + random() ** 4.5 * .82;
     opacity[i] *= (onShell ? 1.0 : .57) * edgeLight;
     i++;
   }

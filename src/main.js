@@ -29,7 +29,7 @@ function start() {
   const scene = new T.Scene();
   const camera = new T.PerspectiveCamera(36, 1, .1, 65);
   const composer = new EffectComposer(renderer);
-  const bloom = new UnrealBloomPass(new T.Vector2(1, 1), .43, .28, .38);
+  const bloom = new UnrealBloomPass(new T.Vector2(1, 1), .33, .46, .70);
   const renderPass = new RenderPass(scene, camera);
   const outputPass = new OutputPass();
   composer.addPass(renderPass);
@@ -152,7 +152,7 @@ function start() {
     pivot.rotation.set(pitch, angle, 0, 'YXZ');
     const glowValue = Number(glow.value);
     bloom.enabled = glowValue > 0;
-    bloom.strength = glowValue * .57 + pulse * .22;
+    bloom.strength = glowValue * .43 + pulse * .18;
     for (const cloud of clouds) cloud.material.uniforms.clock.value = time;
     heart.material.uniforms.pulse.value = pulse;
     energy.update(time, glowValue);
